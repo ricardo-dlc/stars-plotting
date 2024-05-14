@@ -13,5 +13,13 @@ __pycache__/
 [Ll]ib64
 [Ll]ocal
 [Ss]cripts
+[Ss]hare
 pyvenv.cfg
 pip-selfcheck.json
+
+### Project related ###
+# Output
+*.svg
+# Stellarium
+*.bsp
+*.dat
