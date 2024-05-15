@@ -13,7 +13,19 @@ ts = load.timescale()
 with load.open(hipparcos.URL) as f:
     stars = hipparcos.load_dataframe(f)
 
-# print(named_star_dict)
+
+# Convert magnitudes to relative brightness
+stars['brightness'] = 10 ** (-0.4 * stars['magnitude'])
+# Normalize the brightness values
+sum_brightness = stars['brightness'].sum()
+stars['normalized_brightness'] = stars['brightness'] / sum_brightness
+
+
+# Function to scale size based on normalized brightness
+def brightness_to_size(normalized_brightness):
+    # Log scale for better differentiation
+    return 10 + 800 * np.log1p(normalized_brightness * 100)
+
 
 # Define a simplified version of constellation lines
 # (Using Hipparcos star IDs and a few example lines)
@@ -27,22 +39,21 @@ constellation_lines = [
 # Specify the location and time
 # San Francisco coordinates
 location = earth + Topos('21.1619 N', '86.8515 W')
-time = ts.utc(2023, 3, 29, 4, 0, 0)  # Example date and time
+time = ts.utc(2023, 3, 29, 9, 42, 0)  # Example date and time
 
 
 # Create a reverse lookup dictionary from Hipparcos ID to star names
 hip_to_name = {v: k for k, v in named_star_dict.items()}
 
+
 # Function to plot the sky
-
-
 def plot_stars():
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.set_facecolor('navy')
     ax.set_aspect('equal')
 
     # Filter stars based on apparent magnitude (selecting stars with magnitude < 5)
-    visible_stars = stars[stars['magnitude'] < 5]
+    visible_stars = stars[stars['magnitude'] <= 5]
     labeled_positions = []
 
     for star in visible_stars.itertuples():
@@ -57,12 +68,18 @@ def plot_stars():
                 np.cos(np.deg2rad(alt.degrees))
             y = np.cos(np.deg2rad(az.degrees)) * \
                 np.cos(np.deg2rad(alt.degrees))
-            ax.scatter(x, y, color='white', s=1)
+
+            # Determine size of the star based on normalized brightness
+            size = brightness_to_size(star.normalized_brightness)
+
+            # print(marker_size.loc[star.Index])
+            ax.scatter(x, y, color='white', s=size, marker='.', linewidths=0,
+                       zorder=2)
 
             # Check if the star has a common name
             if star.Index in hip_to_name:
                 star_name = hip_to_name[star.Index]
-                print(f"Labeling star: {star_name} at ({x:.2f}, {y:.2f})")
+                # print(f"Labeling star: {star_name} at ({x:.2f}, {y:.2f})")
 
                 # Adjust label position to avoid overlap
                 label_x, label_y = x, y + 0.02
