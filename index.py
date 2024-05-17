@@ -9,6 +9,7 @@ from skyfield.named_stars import named_star_dict
 # Load necessary data
 planets = load('de421.bsp')
 earth = planets['earth']
+# print(planets.names())
 ts = load.timescale()
 constellation_names = dict(load_constellation_names())
 
@@ -47,8 +48,8 @@ def brightness_to_size(normalized_brightness):
 
 
 # Specify the location and time
-location = earth + Topos('21.1619 N', '86.8515 W')
-time = ts.utc(2023, 3, 29, 9, 42, 0)  # Example date and time
+location = earth + Topos('21.1619 N', '-86.8515 W')
+time = ts.utc(2024, 3, 29, 9, 42, 0)  # Example date and time
 
 
 # Create a reverse lookup dictionary from Hipparcos ID to star names
@@ -155,6 +156,32 @@ def plot_stars():
             ax.text(label_x, label_y, f"{
                     constellation_names[constellation_name]}", color='white', fontsize=8, ha='center')
 
+      # Add planets
+    planet_names = ['Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn']
+    planet_barycenters = ['moon', 'MERCURY BARYCENTER', 'VENUS BARYCENTER',
+                          'MARS BARYCENTER', 'JUPITER BARYCENTER', 'SATURN BARYCENTER']
+    for planet_name, barycenter in zip(planet_names, planet_barycenters):
+        planet = planets[barycenter]
+        astrometric = location.at(time).observe(planet)
+        alt, az, distance = astrometric.apparent().altaz()
+
+        if alt.degrees > 0:  # Only plot the planet if it's above the horizon
+            x = np.sin(np.deg2rad(az.degrees)) * \
+                np.cos(np.deg2rad(alt.degrees))
+            y = np.cos(np.deg2rad(az.degrees)) * \
+                np.cos(np.deg2rad(alt.degrees))
+
+            ax.scatter(x, y, color='gray', s=100, label=planet_name)
+            labeled_positions.append((x, y))
+            ax.text(x, y, f"{planet_name}", color='black',
+                    fontsize=8, ha='center')
+
+    # Draw cardinal points
+    ax.text(0, 1.1, 'N', color='white', fontsize=12, ha='center')
+    ax.text(0, -1.1, 'S', color='white', fontsize=12, ha='center')
+    ax.text(1.1, 0, 'E', color='white', fontsize=12, ha='center')
+    ax.text(-1.1, 0, 'W', color='white', fontsize=12, ha='center')
+
     # Draw the horizon circle
     circle = plt.Circle((0, 0), 1, edgecolor='white', facecolor='none', lw=0.5)
     ax.add_patch(circle)
@@ -164,6 +191,8 @@ def plot_stars():
     ax.set_xlim(-1.5, 1.5)
     ax.set_ylim(-1.5, 1.5)
 
+    # plt.legend(loc='upper left', fontsize='small',
+    #            frameon=False, markerscale=0.7)
     plt.savefig('stars_only.svg', format='svg')
     plt.savefig('stars_only.png', format='png', dpi=300)
     # plt.show()
