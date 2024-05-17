@@ -20,6 +20,7 @@ pip-selfcheck.json
 ### Project related ###
 # Output
 *.svg
+*.png
 # Stellarium
 *.bsp
 *.dat

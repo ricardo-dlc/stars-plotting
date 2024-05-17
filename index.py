@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import requests
 import matplotlib.patches as patches
 from skyfield.api import Topos, load, Star
 from skyfield.data import hipparcos
@@ -12,6 +13,24 @@ ts = load.timescale()
 
 with load.open(hipparcos.URL) as f:
     stars = hipparcos.load_dataframe(f)
+
+
+# Download and parse the constellation lines data
+constellation_lines_url = 'https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures/modern/constellationship.fab'
+response = requests.get(constellation_lines_url)
+lines = response.text.strip().split('\n')
+
+
+constellation_lines = []
+for line in lines:
+    parts = line.split()
+    constellation_name = parts[0]
+    num_pairs = int(parts[1])
+    star_ids = [int(star_id) for star_id in parts[2:]]
+    for i in range(num_pairs):
+        star1 = star_ids[2 * i]
+        star2 = star_ids[2 * i + 1]
+        constellation_lines.append((star1, star2))
 
 
 # Convert magnitudes to relative brightness
@@ -27,17 +46,7 @@ def brightness_to_size(normalized_brightness):
     return 10 + 800 * np.log1p(normalized_brightness * 100)
 
 
-# Define a simplified version of constellation lines
-# (Using Hipparcos star IDs and a few example lines)
-constellation_lines = [
-    # Example for a simplified constellation
-    (677, 1021), (677, 3092), (1021, 3092),
-    # Example for another simplified constellation
-    (21421, 21683), (21421, 22061), (21683, 22061)
-]
-
 # Specify the location and time
-# San Francisco coordinates
 location = earth + Topos('21.1619 N', '86.8515 W')
 time = ts.utc(2023, 3, 29, 9, 42, 0)  # Example date and time
 
@@ -94,6 +103,34 @@ def plot_stars():
                     ax.text(label_x, label_y, f"{
                             star_name}", color='white', fontsize=6)
 
+    # Plot constellation lines
+    for star1, star2 in constellation_lines:
+        if star1 in stars.index and star2 in stars.index:
+            star1_data = stars.loc[star1]
+            star2_data = stars.loc[star2]
+
+            star1_obj = Star(ra_hours=star1_data.ra_hours,
+                             dec_degrees=star1_data.dec_degrees)
+            star2_obj = Star(ra_hours=star2_data.ra_hours,
+                             dec_degrees=star2_data.dec_degrees)
+
+            astrometric1 = location.at(time).observe(star1_obj)
+            astrometric2 = location.at(time).observe(star2_obj)
+
+            alt1, az1, distance1 = astrometric1.apparent().altaz()
+            alt2, az2, distance2 = astrometric2.apparent().altaz()
+
+            if alt1.degrees > 0 and alt2.degrees > 0:
+                x1 = np.sin(np.deg2rad(az1.degrees)) * \
+                    np.cos(np.deg2rad(alt1.degrees))
+                y1 = np.cos(np.deg2rad(az1.degrees)) * \
+                    np.cos(np.deg2rad(alt1.degrees))
+                x2 = np.sin(np.deg2rad(az2.degrees)) * \
+                    np.cos(np.deg2rad(alt2.degrees))
+                y2 = np.cos(np.deg2rad(az2.degrees)) * \
+                    np.cos(np.deg2rad(alt2.degrees))
+                ax.plot([x1, x2], [y1, y2], color='white', lw=0.5)
+
     # Draw the horizon circle
     circle = plt.Circle((0, 0), 1, edgecolor='white', facecolor='none', lw=0.5)
     ax.add_patch(circle)
@@ -104,6 +141,7 @@ def plot_stars():
     ax.set_ylim(-1.5, 1.5)
 
     plt.savefig('stars_only.svg', format='svg')
+    plt.savefig('stars_only.png', format='png', dpi=300)
     # plt.show()
 
 
