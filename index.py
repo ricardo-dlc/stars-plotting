@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import requests
 import matplotlib.patches as patches
-from skyfield.api import Topos, load, Star
+from skyfield.api import Topos, load, Star, load_constellation_names
 from skyfield.data import hipparcos
 from skyfield.named_stars import named_star_dict
 
@@ -10,6 +10,7 @@ from skyfield.named_stars import named_star_dict
 planets = load('de421.bsp')
 earth = planets['earth']
 ts = load.timescale()
+constellation_names = dict(load_constellation_names())
 
 with load.open(hipparcos.URL) as f:
     stars = hipparcos.load_dataframe(f)
@@ -21,16 +22,15 @@ response = requests.get(constellation_lines_url)
 lines = response.text.strip().split('\n')
 
 
-constellation_lines = []
+constellations = {}
 for line in lines:
     parts = line.split()
     constellation_name = parts[0]
     num_pairs = int(parts[1])
     star_ids = [int(star_id) for star_id in parts[2:]]
-    for i in range(num_pairs):
-        star1 = star_ids[2 * i]
-        star2 = star_ids[2 * i + 1]
-        constellation_lines.append((star1, star2))
+    pairs = [(star_ids[i], star_ids[i + 1])
+             for i in range(0, len(star_ids), 2)]
+    constellations[constellation_name] = pairs
 
 
 # Convert magnitudes to relative brightness
@@ -61,9 +61,12 @@ def plot_stars():
     ax.set_facecolor('navy')
     ax.set_aspect('equal')
 
+    labeled_positions = []
+    # Dictionary to store midpoint for constellation labeling
+    constellation_midpoints = {}
+
     # Filter stars based on apparent magnitude (selecting stars with magnitude < 5)
     visible_stars = stars[stars['magnitude'] <= 5]
-    labeled_positions = []
 
     for star in visible_stars.itertuples():
         # Create a Star object using the RA and DEC
@@ -85,51 +88,72 @@ def plot_stars():
             ax.scatter(x, y, color='white', s=size, marker='.', linewidths=0,
                        zorder=2)
 
-            # Check if the star has a common name
-            if star.Index in hip_to_name:
-                star_name = hip_to_name[star.Index]
-                # print(f"Labeling star: {star_name} at ({x:.2f}, {y:.2f})")
+            # # Check if the star has a common name
+            # if star.Index in hip_to_name:
+            #     star_name = hip_to_name[star.Index]
+            #     # print(f"Labeling star: {star_name} at ({x:.2f}, {y:.2f})")
 
-                # Adjust label position to avoid overlap
-                label_x, label_y = x, y + 0.02
-                too_close = False
-                for lx, ly in labeled_positions:
-                    if np.hypot(lx - label_x, ly - label_y) < 0.1:
-                        too_close = True
-                        break
+            #     # Adjust label position to avoid overlap
+            #     label_x, label_y = x, y + 0.02
+            #     too_close = False
+            #     for lx, ly in labeled_positions:
+            #         if np.hypot(lx - label_x, ly - label_y) < 0.1:
+            #             too_close = True
+            #             break
 
-                if not too_close:
-                    labeled_positions.append((label_x, label_y))
-                    ax.text(label_x, label_y, f"{
-                            star_name}", color='white', fontsize=6)
+            #     if not too_close:
+            #         labeled_positions.append((label_x, label_y))
+            #         ax.text(label_x, label_y, f"{
+            #                 star_name}", color='white', fontsize=6)
 
-    # Plot constellation lines
-    for star1, star2 in constellation_lines:
-        if star1 in stars.index and star2 in stars.index:
-            star1_data = stars.loc[star1]
-            star2_data = stars.loc[star2]
+    # Plot constellation lines and calculate midpoints for labeling
+    for constellation_name, star_pairs in constellations.items():
+        for i, (star1, star2) in enumerate(star_pairs):
+            if star1 in stars.index and star2 in stars.index:
+                star1_data = stars.loc[star1]
+                star2_data = stars.loc[star2]
 
-            star1_obj = Star(ra_hours=star1_data.ra_hours,
-                             dec_degrees=star1_data.dec_degrees)
-            star2_obj = Star(ra_hours=star2_data.ra_hours,
-                             dec_degrees=star2_data.dec_degrees)
+                star1_obj = Star(ra_hours=star1_data.ra_hours,
+                                 dec_degrees=star1_data.dec_degrees)
+                star2_obj = Star(ra_hours=star2_data.ra_hours,
+                                 dec_degrees=star2_data.dec_degrees)
 
-            astrometric1 = location.at(time).observe(star1_obj)
-            astrometric2 = location.at(time).observe(star2_obj)
+                astrometric1 = location.at(time).observe(star1_obj)
+                astrometric2 = location.at(time).observe(star2_obj)
 
-            alt1, az1, distance1 = astrometric1.apparent().altaz()
-            alt2, az2, distance2 = astrometric2.apparent().altaz()
+                alt1, az1, distance1 = astrometric1.apparent().altaz()
+                alt2, az2, distance2 = astrometric2.apparent().altaz()
 
-            if alt1.degrees > 0 and alt2.degrees > 0:
-                x1 = np.sin(np.deg2rad(az1.degrees)) * \
-                    np.cos(np.deg2rad(alt1.degrees))
-                y1 = np.cos(np.deg2rad(az1.degrees)) * \
-                    np.cos(np.deg2rad(alt1.degrees))
-                x2 = np.sin(np.deg2rad(az2.degrees)) * \
-                    np.cos(np.deg2rad(alt2.degrees))
-                y2 = np.cos(np.deg2rad(az2.degrees)) * \
-                    np.cos(np.deg2rad(alt2.degrees))
-                ax.plot([x1, x2], [y1, y2], color='white', lw=0.5)
+                if alt1.degrees > 0 and alt2.degrees > 0:
+                    x1 = np.sin(np.deg2rad(az1.degrees)) * \
+                        np.cos(np.deg2rad(alt1.degrees))
+                    y1 = np.cos(np.deg2rad(az1.degrees)) * \
+                        np.cos(np.deg2rad(alt1.degrees))
+                    x2 = np.sin(np.deg2rad(az2.degrees)) * \
+                        np.cos(np.deg2rad(alt2.degrees))
+                    y2 = np.cos(np.deg2rad(az2.degrees)) * \
+                        np.cos(np.deg2rad(alt2.degrees))
+                    ax.plot([x1, x2], [y1, y2], color='white', lw=0.5)
+
+                    # Calculate the midpoint for labeling the constellation name
+                    if i == 0:  # Use the first star pair to place the label
+                        label_x = (x1 + x2) / 2
+                        label_y = (y1 + y2) / 2
+                        constellation_midpoints[constellation_name] = (
+                            label_x, label_y)
+
+    # Label constellations
+    for constellation_name, (label_x, label_y) in constellation_midpoints.items():
+        too_close = False
+        for lx, ly in labeled_positions:
+            if np.hypot(lx - label_x, ly - label_y) < 0.1:
+                too_close = True
+                break
+
+        if not too_close:
+            labeled_positions.append((label_x, label_y))
+            ax.text(label_x, label_y, f"{
+                    constellation_names[constellation_name]}", color='white', fontsize=8, ha='center')
 
     # Draw the horizon circle
     circle = plt.Circle((0, 0), 1, edgecolor='white', facecolor='none', lw=0.5)
