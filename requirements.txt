@@ -2,3 +2,6 @@ pandas
 numpy
 skyfield
 matplotlib
+starplot
+geopy
+timezonefinder
